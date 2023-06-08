@@ -52,7 +52,7 @@ class ApiHandler(APIHandler):
         else:  # mem_limit is an Int
             mem_limit = config.mem_limit
 
-        limits = {"memory": {"rss": mem_limit, "pss": mem_limit}}
+        limits = {"memory": {"rss": mem_limit, "pss": mem_limit}, 'disk': {}}
         if config.mem_limit and config.mem_warning_threshold != 0:
             limits["memory"]["warn"] = (mem_limit - rss) < (
                 mem_limit * config.mem_warning_threshold
@@ -63,6 +63,11 @@ class ApiHandler(APIHandler):
         disk_info = psutil.disk_usage(os.getenv("HOME"))
         metrics["disk_used"] = disk_info.used
         metrics["disk_total"] = disk_info.total
+
+        if config.disk_warning_threshold != 0:
+            limits["disk"]["warn"] = (disk_info.total - disk_info.used) < (
+                disk_info.total * config.disk_warning_threshold
+            )
 
         if pss is not None:
             metrics["pss"] = pss

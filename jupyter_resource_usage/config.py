@@ -128,6 +128,21 @@ class ResourceUseDisplay(Configurable):
     def _cpu_limit_default(self):
         return float(os.environ.get("CPU_LIMIT", 0))
 
+    
+    disk_warning_threshold = Float(
+        default_value=0.1,
+        help="""
+        Warn user with flashing lights when disk usage is within this fraction
+        total disk.
+
+        For example, if total disk is 10GB, `mem_warning_threshold` is 0.1,
+        we will start warning the user when they use (10 - (10 * 0.1)) MB.
+
+        Set to 0 to disable warning.
+        """,
+    ).tag(config=True)
+
+
     enable_prometheus_metrics = Bool(
         default_value=True,
         help="""

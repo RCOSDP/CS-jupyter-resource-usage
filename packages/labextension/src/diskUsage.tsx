@@ -186,6 +186,7 @@ export namespace DiskUsage {
         this._diskTotal = diskTotal
           ? diskTotal / MEMORY_UNIT_LIMITS[units]
           : null;
+        this._warn = value.limits.disk?.warn ?? false;
       }
 
       if (
@@ -250,6 +251,11 @@ namespace Private {
   export interface IMetricRequestResult {
     disk_used: number;
     disk_total: number;
+    limits: {
+      disk?: {
+        warn: boolean;
+      };
+    };
   }
 
   /**
