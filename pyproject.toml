@@ -77,7 +77,7 @@ exclude = [".github", "binder"]
 
 [tool.hatch.build.hooks.jupyter-builder]
 dependencies = [
-    "hatch-jupyter-builder>=0.8.2",
+    "hatch-jupyter-builder>=0.8.1",
 ]
 build-function = "hatch_jupyter_builder.npm_builder"
 ensured-targets = [
