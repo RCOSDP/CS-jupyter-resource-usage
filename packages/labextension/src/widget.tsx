@@ -1,5 +1,4 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { ISignal } from '@lumino/signaling';
 import { ReactWidget, ISessionContext } from '@jupyterlab/apputils';
 import { IChangedArgs } from '@jupyterlab/coreutils';
 import { Kernel } from '@jupyterlab/services';
@@ -20,6 +19,7 @@ type Usage = {
   pid: number;
   host_cpu_percent: number;
   cpu_count: number;
+  host_usage_flag: boolean;
   host_virtual_memory: {
     active: number;
     available: number;
@@ -123,7 +123,7 @@ const BlankReason = (props: {
 };
 
 const KernelUsage = (props: {
-  currentChanged: ISignal<KernelWidgetTracker, IWidgetWithSession | null>;
+  tracker: KernelWidgetTracker;
   panel: KernelUsagePanel;
   trans: TranslationBundle;
 }) => {
@@ -234,9 +234,12 @@ const KernelUsage = (props: {
         }
       }
     };
-    props.currentChanged.connect(notebookChangeCallback);
+    props.tracker.currentChanged.connect(notebookChangeCallback);
+    if (props.tracker.currentWidget) {
+      notebookChangeCallback(props.tracker, props.tracker.currentWidget);
+    }
     return () => {
-      props.currentChanged.disconnect(notebookChangeCallback);
+      props.tracker.currentChanged.disconnect(notebookChangeCallback);
       // In the ideal world we would disconnect kernelChangeCallback from
       // last panel here, but this can lead to a race condition. Instead,
       // we make sure there is ever only one callback active by holding
@@ -300,56 +303,56 @@ const KernelUsage = (props: {
                 {formatForDisplay(usage.kernel_memory)}
               </div>
               <hr className="jp-KernelUsage-section-separator"></hr>
-              <h4 className="jp-KernelUsage-section-separator">
-                {props.trans.__('Host CPU')}
-              </h4>
-              {usage.host_cpu_percent && (
-                <div className="jp-KernelUsage-separator">
-                  {props.trans._n(
-                    '%2%% used on %1 CPU',
-                    '%2%% used on %1 CPUs',
-                    usage.cpu_count,
-                    usage.host_cpu_percent.toFixed(1)
+              {usage?.host_usage_flag ? (
+                <>
+                  <h4 className="jp-KernelUsage-section-separator">
+                    {props.trans.__('Host CPU')}
+                  </h4>
+                  {usage.host_cpu_percent && (
+                    <div className="jp-KernelUsage-separator">
+                      {props.trans._n(
+                        '%2%% used on %1 CPU',
+                        '%2%% used on %1 CPUs',
+                        usage.cpu_count,
+                        usage.host_cpu_percent.toFixed(1)
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
-              <h4 className="jp-KernelUsage-section-separator">
-                {props.trans.__('Host Virtual Memory')}
-              </h4>
-              <div className="jp-KernelUsage-separator">
-                {props.trans.__('Active:')}{' '}
-                {formatForDisplay(usage.host_virtual_memory.active)}
-              </div>
-              <div className="jp-KernelUsage-separator">
-                {props.trans.__('Available:')}{' '}
-                {formatForDisplay(usage.host_virtual_memory.available)}
-              </div>
-              <div className="jp-KernelUsage-separator">
-                {props.trans.__('Free:')}{' '}
-                {formatForDisplay(usage.host_virtual_memory.free)}
-              </div>
-              <div className="jp-KernelUsage-separator">
-                {props.trans.__('Inactive:')}{' '}
-                {formatForDisplay(usage.host_virtual_memory.inactive)}
-              </div>
-              {usage.host_virtual_memory.percent && (
-                <div className="jp-KernelUsage-separator">
-                  {props.trans.__('Percent used:')}{' '}
-                  {usage.host_virtual_memory.percent.toFixed(1)}%
-                </div>
-              )}
-              <div className="jp-KernelUsage-separator">
-                {props.trans.__('Total:')}{' '}
-                {formatForDisplay(usage.host_virtual_memory.total)}
-              </div>
-              <div className="jp-KernelUsage-separator">
-                {props.trans.__('Used:')}{' '}
-                {formatForDisplay(usage.host_virtual_memory.used)}
-              </div>
-              <div className="jp-KernelUsage-separator">
-                {props.trans.__('Wired:')}{' '}
-                {formatForDisplay(usage.host_virtual_memory.wired)}
-              </div>
+                  <h4 className="jp-KernelUsage-section-separator">
+                    {props.trans.__('Host Virtual Memory')}
+                  </h4>
+                  <div className="jp-KernelUsage-separator">
+                    {props.trans.__('Active:')}{' '}
+                    {formatForDisplay(usage.host_virtual_memory.active)}
+                  </div>
+                  <div className="jp-KernelUsage-separator">
+                    {props.trans.__('Available:')}{' '}
+                    {formatForDisplay(usage.host_virtual_memory.available)}
+                  </div>
+                  <div className="jp-KernelUsage-separator">
+                    {props.trans.__('Free:')}{' '}
+                    {formatForDisplay(usage.host_virtual_memory.free)}
+                  </div>
+                  <div className="jp-KernelUsage-separator">
+                    {props.trans.__('Inactive:')}{' '}
+                    {formatForDisplay(usage.host_virtual_memory.inactive)}
+                  </div>
+                  {usage.host_virtual_memory.percent && (
+                    <div className="jp-KernelUsage-separator">
+                      {props.trans.__('Percent used:')}{' '}
+                      {usage.host_virtual_memory.percent.toFixed(1)}%
+                    </div>
+                  )}
+                  <div className="jp-KernelUsage-separator">
+                    {props.trans.__('Total:')}{' '}
+                    {formatForDisplay(usage.host_virtual_memory.total)}
+                  </div>
+                  <div className="jp-KernelUsage-separator">
+                    {props.trans.__('Wired:')}{' '}
+                    {formatForDisplay(usage.host_virtual_memory.wired)}
+                  </div>
+                </>
+              ) : null}
             </>
           ) : blankStateReason?.reason === 'loading' ? (
             <div className="jp-KernelUsage-separator">
@@ -368,19 +371,16 @@ const KernelUsage = (props: {
 };
 
 export class KernelUsageWidget extends ReactWidget {
-  private _currentChanged: ISignal<
-    KernelWidgetTracker,
-    IWidgetWithSession | null
-  >;
+  private _tracker: KernelWidgetTracker;
   private _panel: KernelUsagePanel;
   private _trans: TranslationBundle;
   constructor(props: {
-    currentChanged: ISignal<KernelWidgetTracker, IWidgetWithSession | null>;
+    tracker: KernelWidgetTracker;
     panel: KernelUsagePanel;
     trans: TranslationBundle;
   }) {
     super();
-    this._currentChanged = props.currentChanged;
+    this._tracker = props.tracker;
     this._panel = props.panel;
     this._trans = props.trans;
     this.addClass(KERNEL_USAGE_CLASS);
@@ -389,7 +389,7 @@ export class KernelUsageWidget extends ReactWidget {
   protected render(): React.ReactElement<any> {
     return (
       <KernelUsage
-        currentChanged={this._currentChanged}
+        tracker={this._tracker}
         panel={this._panel}
         trans={this._trans}
       />
